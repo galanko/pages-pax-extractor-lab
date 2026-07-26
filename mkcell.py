@@ -58,6 +58,16 @@ elif cell == "iv":
         reg(tf, "./index.html", INDEX)
         reg(tf, longname, ESCAPE)
 
+elif cell == "vi":
+    # INVERSE of cell iii: the PAX 'path' record is BENIGN, the raw ustar name
+    # field carries the traversal.  Tests the other direction of the desync --
+    # a PAX-aware validator resolves the safe name while a PAX-ignorant writer
+    # would use the escaping header field.
+    with tarfile.open(out, "w", format=tarfile.PAX_FORMAT) as tf:
+        reg(tf, "./index.html", INDEX)
+        reg(tf, "./../inv-escape-%s.html" % NONCE, ESCAPE,
+            pax={"path": "./inv-safe-%s.html" % NONCE})
+
 elif cell == "v":
     # POSIX ustar name splitting: full name = prefix + "/" + name.
     # Every 100-byte `name` field stays "./"-prefixed and ".."-free; the
