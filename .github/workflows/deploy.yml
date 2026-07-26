@@ -16,29 +16,30 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 1
-      fail-fast: false
-      matrix:
-        cell: [iv, v]
     environment:
       name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build artifact.tar for cell ${{ matrix.cell }}
+      - name: Build artifact.tar for the cell named in cell.txt
         run: |
           set -eu
-          python3 mkcell.py "${{ matrix.cell }}" L3P
+          CELL="$(tr -d '[:space:]' < cell.txt)"
+          echo "cell=$CELL"
+          python3 mkcell.py "$CELL" L3P
           mv artifact.tar "$RUNNER_TEMP/artifact.tar"
           echo "::group::raw ustar header name fields of the archive being uploaded"
           python3 hdrdump.py "$RUNNER_TEMP/artifact.tar"
           echo "::endgroup::"
           echo "sha256: $(sha256sum "$RUNNER_TEMP/artifact.tar")"
+          echo "bytes:  $(stat -c%s "$RUNNER_TEMP/artifact.tar")"
 
+      # Exactly the pin and the parameters actions/upload-pages-artifact@98ef48e4
+      # action.yml:84-89 uses, so the wire shape is identical (zip{artifact.tar}).
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: github-pages-${{ matrix.cell }}
+          name: github-pages
           path: ${{ runner.temp }}/artifact.tar
           retention-days: 1
           if-no-files-found: error
@@ -48,11 +49,12 @@ jobs:
         continue-on-error: true
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # pinned audit ref
         with:
-          artifact_name: github-pages-${{ matrix.cell }}
           timeout: 300000
           error_count: 40
           reporting_interval: 2000
 
       - name: Outcome
         if: always()
-        run: echo "CELL ${{ matrix.cell }} deploy-pages outcome: ${{ steps.deployment.outcome }}"
+        run: |
+          echo "deploy-pages outcome: ${{ steps.deployment.outcome }}"
+          echo "page_url: ${{ steps.deployment.outputs.page_url }}"
